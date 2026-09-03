@@ -61,6 +61,15 @@
   textarea{resize:vertical;min-height:56px}
   input::placeholder,textarea::placeholder{color:var(--muted)}
   .hint{font-size:12px;color:var(--muted)}
+  .field{
+    display:flex;align-items:center;gap:8px;
+    border:1px solid var(--line-strong);border-radius:9px;padding:0 11px;background:transparent
+  }
+  .field:focus-within{border-color:var(--accent)}
+  .field .lab{font-size:13px;color:var(--muted);white-space:nowrap}
+  .field input{border:0;padding:9px 0;min-width:0;background:transparent}
+  .field input:focus{border:0}
+  input[type=date]{color-scheme:light dark}
 
   button.btn{
     font:inherit;font-size:13px;font-weight:550;cursor:pointer;
@@ -83,7 +92,7 @@
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none
   }
   .task.doing{border-left-color:var(--run);background:var(--run-bg)}
-  .task.doing.late{border-left-color:var(--late);background:var(--late-bg)}
+  .task.late{border-left-color:var(--late);background:var(--late-bg)}
   .task.done{border-left-color:var(--done);background:var(--done-bg)}
   .handle{
     flex:0 0 auto;width:34px;align-self:stretch;
@@ -204,6 +213,11 @@ function fmtDuration(min){
 }
 const DTF = new Intl.DateTimeFormat("it-IT", {day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"});
 const DTFY = new Intl.DateTimeFormat("it-IT", {day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit"});
+const DF = new Intl.DateTimeFormat("it-IT", {day:"2-digit", month:"short", year:"numeric"});
+function fmtDay(d){
+  if(!d) return "";
+  return DF.format(new Date(d + "T12:00:00"));
+}
 function fmtDate(iso){
   if(!iso) return "";
   const d = new Date(iso);
@@ -312,7 +326,8 @@ function render(){
       <input id="f-title" placeholder="Titolo del task" autocomplete="off" required>
       <textarea id="f-desc" placeholder="Descrizione (facoltativa)"></textarea>
       <div class="row">
-        <input id="f-est" style="flex:1;min-width:180px" placeholder="Tempistica stimata — es. 3 giorni, 4h, 1 settimana" autocomplete="off">
+        <input id="f-est" style="flex:2;min-width:190px" placeholder="Tempistica stimata — es. 3 giorni, 4h" autocomplete="off">
+        <label class="field" style="flex:1;min-width:170px"><span class="lab">Scadenza</span><input type="date" id="f-dead"></label>
         <button class="btn primary" type="submit">Aggiungi</button>
       </div>
       <div class="hint" id="est-hint">Scrivi liberamente: riconosco minuti, ore, giorni, settimane e mesi.</div>
@@ -334,12 +349,23 @@ function render(){
 function cardHTML(t){
   if(t.id === editingId) return editHTML(t);
   const est = parseEstimate(t.estimate);
-  const late = t.status === "doing" && t.due_at && new Date(t.due_at) < new Date();
+  const dl = t.deadline ? new Date(t.deadline + "T23:59:59") : null;
+  const scaduta = dl && t.status !== "done" && dl < new Date();
+  const rischio = dl && t.status === "doing" && t.due_at && new Date(t.due_at) > dl;
+  const sforato = t.status === "doing" && t.due_at && new Date(t.due_at) < new Date();
+  const late = sforato || scaduta;
   const chips = [];
   if(t.estimate) chips.push(`<span class="chip">⏱ ${esc(t.estimate)}${est ? " · " + fmtDuration(est) : ""}</span>`);
   if(t.started_at) chips.push(`<span class="chip run">▶ avviato ${fmtDate(t.started_at)}</span>`);
-  if(t.status === "doing" && t.due_at) chips.push(`<span class="chip ${late ? "late":"run"}">🏁 fine prevista ${fmtDate(t.due_at)}${late ? " · in ritardo":""}</span>`);
+  if(t.status === "doing" && t.due_at) chips.push(`<span class="chip ${sforato ? "late":"run"}">🏁 fine prevista ${fmtDate(t.due_at)}${sforato ? " · in ritardo":""}</span>`);
   if(t.status === "doing" && !t.due_at && t.estimate) chips.push(`<span class="chip">stima non interpretabile</span>`);
+  if(dl){
+    const inTempo = t.status === "done" && t.completed_at && new Date(t.completed_at) <= dl;
+    const cls = t.status === "done" ? (inTempo ? "ok" : "late") : (scaduta || rischio ? "late" : "");
+    const nota = t.status === "done" ? (inTempo ? "" : " · fuori tempo")
+               : scaduta ? " · scaduta" : rischio ? " · a rischio" : "";
+    chips.push(`<span class="chip ${cls}">📅 scadenza ${fmtDay(t.deadline)}${nota}</span>`);
+  }
   if(t.status === "done") chips.push(`<span class="chip ok">✓ completato ${fmtDate(t.completed_at)}</span>`);
 
   const actions = t.status === "todo"
@@ -377,6 +403,7 @@ function editHTML(t){
         <input id="e-title" value="${esc(t.title)}" placeholder="Titolo">
         <textarea id="e-desc" placeholder="Descrizione">${esc(t.description || "")}</textarea>
         <input id="e-est" value="${esc(t.estimate || "")}" placeholder="Tempistica stimata">
+        <label class="field"><span class="lab">Scadenza</span><input type="date" id="e-dead" value="${esc(t.deadline || "")}"></label>
       </div>
       <div class="actions">
         <button class="btn primary" data-act="save" data-id="${t.id}">Salva</button>
@@ -451,6 +478,7 @@ function wire(){
         title,
         description: document.getElementById("f-desc").value.trim(),
         estimate: est.value.trim(),
+        deadline: document.getElementById("f-dead").value || null,
         status: "todo",
         position: (activeTasks().reduce((m,t) => Math.max(m, t.position || 0), 0)) + 1,
         started_at: null, due_at: null, completed_at: null
@@ -515,7 +543,8 @@ async function action(act, id){
       const patch = {
         title: document.getElementById("e-title").value.trim() || t.title,
         description: document.getElementById("e-desc").value.trim(),
-        estimate: document.getElementById("e-est").value.trim()
+        estimate: document.getElementById("e-est").value.trim(),
+        deadline: document.getElementById("e-dead").value || null
       };
       if(t.status === "doing" && t.started_at){
         const min = parseEstimate(patch.estimate);
