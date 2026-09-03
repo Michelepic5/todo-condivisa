@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo condivisa</title>
+<style>
+  :root{
+    --bg:#f6f6f4; --panel:#ffffff; --ink:#1b1b19; --muted:#6d6d68;
+    --line:#e3e3df; --line-strong:#d2d2cc;
+    --accent:#2f6f5b; --accent-soft:#e6f0ec;
+    --run:#b45309; --run-bg:#fff5e6; --run-line:#f0c891;
+    --done:#3f7d4c; --done-bg:#eef5ef;
+    --late:#b3261e; --late-bg:#fdeceb;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#16171a; --panel:#1e2024; --ink:#ececeb; --muted:#9a9a95;
+      --line:#2c2f34; --line-strong:#3a3e44;
+      --accent:#6fbfa2; --accent-soft:#1f322c;
+      --run:#e0a350; --run-bg:#2c2418; --run-line:#5a4526;
+      --done:#7fbf8d; --done-bg:#1c2620;
+      --late:#f08a82; --late-bg:#33201f;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.25);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:780px;margin:0 auto;padding:24px 18px 80px}
+  header.top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  h1{font-size:22px;margin:0;letter-spacing:-.01em}
+  .sync{font-size:12px;color:var(--muted);margin-left:auto;display:flex;align-items:center;gap:6px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--accent)}
+  .dot.off{background:var(--late)}
+
+  .tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:4px;margin-bottom:16px;width:fit-content}
+  .tabs button{
+    border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;
+    padding:6px 14px;border-radius:7px;cursor:pointer
+  }
+  .tabs button.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+        box-shadow:var(--shadow)}
+  form.new{padding:14px;margin-bottom:18px;display:grid;gap:8px}
+  form.new .row{display:flex;gap:8px;flex-wrap:wrap}
+  input,textarea{
+    width:100%;font:inherit;color:var(--ink);background:transparent;
+    border:1px solid var(--line-strong);border-radius:9px;padding:9px 11px;outline:none
+  }
+  input:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:vertical;min-height:56px}
+  input::placeholder,textarea::placeholder{color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted)}
+
+  button.btn{
+    font:inherit;font-size:13px;font-weight:550;cursor:pointer;
+    border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);
+    border-radius:8px;padding:7px 12px
+  }
+  button.btn:hover{border-color:var(--accent)}
+  button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.btn.primary:hover{filter:brightness(1.06)}
+  button.btn.ghost{border-color:transparent;color:var(--muted);padding:7px 8px}
+  button.btn.ghost:hover{color:var(--ink);border-color:var(--line-strong)}
+  button.btn.danger{color:var(--late);border-color:transparent}
+  button.btn.danger:hover{border-color:var(--late)}
+
+  .list{display:grid;gap:10px}
+  .task{
+    position:relative;display:flex;gap:10px;padding:13px 13px 13px 8px;
+    background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line-strong);
+    border-radius:var(--radius);box-shadow:var(--shadow);
+    user-select:none
+  }
+  .task.doing{border-left-color:var(--run);background:var(--run-bg)}
+  .task.doing.late{border-left-color:var(--late);background:var(--late-bg)}
+  .task.done{border-left-color:var(--done);background:var(--done-bg)}
+  .handle{
+    flex:0 0 auto;width:22px;display:flex;align-items:flex-start;justify-content:center;
+    padding-top:2px;color:var(--muted);cursor:grab;font-size:15px;line-height:1;
+    touch-action:none
+  }
+  .handle:active{cursor:grabbing}
+  .task.done .handle{visibility:hidden}
+  .body{flex:1;min-width:0}
+  .title{font-size:15px;font-weight:600;margin:0 0 2px;word-break:break-word}
+  .task.done .title{text-decoration:line-through;color:var(--muted)}
+  .desc{margin:4px 0 0;color:var(--muted);font-size:14px;white-space:pre-wrap;word-break:break-word}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{
+    font-size:12px;color:var(--muted);background:transparent;border:1px solid var(--line);
+    border-radius:999px;padding:2px 9px;white-space:nowrap
+  }
+  .chip.run{color:var(--run);border-color:var(--run-line)}
+  .chip.late{color:var(--late);border-color:var(--late)}
+  .chip.ok{color:var(--done);border-color:var(--done)}
+  .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+  .empty{color:var(--muted);text-align:center;padding:34px 10px;font-size:14px}
+
+  .edit{display:grid;gap:7px;margin-top:4px}
+
+  .drag-clone{
+    position:fixed;top:0;left:0;z-index:999;pointer-events:none;
+    width:auto;opacity:.95;transform-origin:0 0;
+    box-shadow:0 12px 30px rgba(0,0,0,.22);
+    rotate:.6deg
+  }
+  .drag-source{opacity:.35}
+  body.dragging{cursor:grabbing}
+
+  .setup{padding:20px;display:grid;gap:12px;max-width:560px;margin:40px auto}
+  .setup h2{margin:0;font-size:18px}
+  .setup ol{margin:0;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.7}
+  code{background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:5px;font-size:12.5px}
+  .banner{font-size:12.5px;color:var(--muted);text-align:center;margin-top:22px}
+  .banner a{color:var(--accent);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* ============================================================
+   CONFIGURAZIONE
+   Incolla qui i due valori del tuo progetto Supabase.
+   (Se li lasci vuoti, l'app chiede di inserirli al primo avvio
+   e li salva nel browser.)
+   ============================================================ */
+const CONFIG = {
+  SUPABASE_URL: "https://owkrvcfodsjzwqtipsrm.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_QZqxXGa1ts4y-JwYe4QmDQ_rk6yUD_V"
+};
+
+/* ---------- config effettiva (file oppure localStorage) ---------- */
+const LS_CFG = "todo_cfg_v1";
+function loadCfg(){
+  if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) return {...CONFIG, mode:"cloud"};
+  try{
+    const raw = localStorage.getItem(LS_CFG);
+    if(raw){ const c = JSON.parse(raw); if(c && (c.mode === "local" || (c.SUPABASE_URL && c.SUPABASE_ANON_KEY))) return c; }
+  }catch(e){}
+  return null;
+}
+let cfg = loadCfg();
+let sb = null;
+
+/* ============================================================
+   STIMA -> MINUTI
+   ============================================================ */
+const WORDS = {
+  "un":1,"uno":1,"una":1,"due":2,"tre":3,"quattro":4,"cinque":5,"sei":6,
+  "sette":7,"otto":8,"nove":9,"dieci":10,"undici":11,"dodici":12,
+  "quindici":15,"venti":20,"trenta":30,"mezza":0.5,"mezzo":0.5
+};
+const UNITS = [
+  [/^(settimane|settimana|sett|w)$/, 60*24*7],
+  [/^(mesi|mese)$/,                  60*24*30],
+  [/^(giorni|giorno|gg|g|d)$/,       60*24],
+  [/^(minuti|minuto|min|m)$/,        1],
+  [/^(ore|ora|h)$/,                  60]
+];
+function parseEstimate(text){
+  if(!text) return null;
+  let s = " " + String(text).toLowerCase().replace(/[’']/g, "'") + " ";
+  s = s.replace(/mezz'?\s*ora/g, " 0.5 ore ")
+       .replace(/mezza\s+giornata/g, " 0.5 giorni ")
+       .replace(/mezza\s+settimana/g, " 0.5 settimane ");
+  for(const w in WORDS){
+    s = s.replace(new RegExp("(^|[^a-z0-9])" + w + "'?(?=[\\s-]|$)", "g"), "$1 " + WORDS[w] + " ");
+  }
+  const re = /(\d+(?:[.,]\d+)?)\s*(settimane|settimana|sett|w|mesi|mese|giorni|giorno|gg|g|d|minuti|minuto|min|ore|ora|h|m)(?![a-z])/g;
+  let total = 0, found = false, mm;
+  while((mm = re.exec(s)) !== null){
+    const n = parseFloat(mm[1].replace(",", "."));
+    const u = mm[2];
+    for(const [rx, mult] of UNITS){
+      if(rx.test(u)){ total += n * mult; found = true; break; }
+    }
+  }
+  return found ? Math.round(total) : null;
+}
+function fmtDuration(min){
+  if(min == null) return "";
+  const d = Math.floor(min/1440), h = Math.floor((min%1440)/60), m = Math.round(min%60);
+  const p = [];
+  if(d) p.push(d + "g");
+  if(h) p.push(h + "h");
+  if(m) p.push(m + "m");
+  return p.join(" ") || "0m";
+}
+const DTF = new Intl.DateTimeFormat("it-IT", {day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"});
+const DTFY = new Intl.DateTimeFormat("it-IT", {day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit"});
+function fmtDate(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return (sameYear ? DTF : DTFY).format(d);
+}
+
+/* ============================================================
+   STORE (Supabase oppure locale)
+   ============================================================ */
+const LS_TASKS = "todo_tasks_v1";
+const localStore = {
+  realtime:false,
+  async list(){
+    let a = [];
+    try{ a = JSON.parse(localStorage.getItem(LS_TASKS) || "[]"); }catch(e){}
+    return a.sort((x,y) => (x.position - y.position) || (x.created_at < y.created_at ? -1 : 1));
+  },
+  _save(a){ localStorage.setItem(LS_TASKS, JSON.stringify(a)); },
+  async create(row){
+    const a = await this.list();
+    const t = {id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())),
+               created_at: new Date().toISOString(), ...row};
+    a.push(t); this._save(a); return t;
+  },
+  async update(id, patch){
+    const a = await this.list();
+    const i = a.findIndex(t => t.id === id);
+    if(i >= 0){ a[i] = {...a[i], ...patch}; this._save(a); }
+  },
+  async remove(id){
+    const a = (await this.list()).filter(t => t.id !== id);
+    this._save(a);
+  },
+  async reorder(items){
+    const a = await this.list();
+    for(const it of items){ const t = a.find(x => x.id === it.id); if(t) t.position = it.position; }
+    this._save(a);
+  }
+};
+const cloudStore = {
+  realtime:true,
+  async list(){
+    const {data, error} = await sb.from("tasks").select("*").order("position", {ascending:true}).order("created_at", {ascending:true});
+    if(error) throw error;
+    return data || [];
+  },
+  async create(row){
+    const {data, error} = await sb.from("tasks").insert(row).select().single();
+    if(error) throw error;
+    return data;
+  },
+  async update(id, patch){
+    const {error} = await sb.from("tasks").update(patch).eq("id", id);
+    if(error) throw error;
+  },
+  async remove(id){
+    const {error} = await sb.from("tasks").delete().eq("id", id);
+    if(error) throw error;
+  },
+  async reorder(items){
+    await Promise.all(items.map(it => sb.from("tasks").update({position: it.position}).eq("id", it.id)));
+  }
+};
+let store = localStore;
+
+/* ============================================================
+   STATO
+   ============================================================ */
+let tasks = [];
+let view = "active";          // "active" | "done"
+let editingId = null;
+let confirmDelId = null;
+let dragging = false;
+let pendingRefresh = false;
+let online = true;
+const app = document.getElementById("app");
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function activeTasks(){ return tasks.filter(t => t.status !== "done"); }
+function doneTasks(){
+  return tasks.filter(t => t.status === "done")
+              .sort((a,b) => new Date(b.completed_at||0) - new Date(a.completed_at||0));
+}
+
+function render(){
+  if(!cfg){ renderSetup(); return; }
+  const list = view === "active" ? activeTasks() : doneTasks();
+  app.innerHTML = `
+    <header class="top">
+      <h1>Todo condivisa</h1>
+      <div class="sync"><span class="dot ${cfg.mode==="local" ? "" : (online ? "on":"off")}"></span>
+        ${cfg.mode === "local" ? "solo questo browser" : (online ? "sincronizzata" : "offline")}</div>
+    </header>
+
+    <div class="tabs">
+      <button data-tab="active" class="${view==="active"?"active":""}">Da fare (${activeTasks().length})</button>
+      <button data-tab="done" class="${view==="done"?"active":""}">Completate (${tasks.filter(t=>t.status==="done").length})</button>
+    </div>
+
+    ${view === "active" ? `
+    <form class="card new" id="newForm">
+      <input id="f-title" placeholder="Titolo del task" autocomplete="off" required>
+      <textarea id="f-desc" placeholder="Descrizione (facoltativa)"></textarea>
+      <div class="row">
+        <input id="f-est" style="flex:1;min-width:180px" placeholder="Tempistica stimata — es. 3 giorni, 4h, 1 settimana" autocomplete="off">
+        <button class="btn primary" type="submit">Aggiungi</button>
+      </div>
+      <div class="hint" id="est-hint">Scrivi liberamente: riconosco minuti, ore, giorni, settimane e mesi.</div>
+    </form>` : ``}
+
+    <div class="list" id="list">
+      ${list.length ? list.map(cardHTML).join("") : `<div class="empty">${
+        view === "active" ? "Nessun task da fare. Aggiungine uno qui sopra." : "Nessun task completato."
+      }</div>`}
+    </div>
+
+    <div class="banner">${cfg.mode === "local"
+      ? `Modalità locale: i dati restano su questo browser. <a id="reconf">Collega Supabase</a>`
+      : `<a id="reconf">Impostazioni connessione</a>`}</div>
+  `;
+  wire();
+}
+
+function cardHTML(t){
+  if(t.id === editingId) return editHTML(t);
+  const est = parseEstimate(t.estimate);
+  const late = t.status === "doing" && t.due_at && new Date(t.due_at) < new Date();
+  const chips = [];
+  if(t.estimate) chips.push(`<span class="chip">⏱ ${esc(t.estimate)}${est ? " · " + fmtDuration(est) : ""}</span>`);
+  if(t.started_at) chips.push(`<span class="chip run">▶ avviato ${fmtDate(t.started_at)}</span>`);
+  if(t.status === "doing" && t.due_at) chips.push(`<span class="chip ${late ? "late":"run"}">🏁 fine prevista ${fmtDate(t.due_at)}${late ? " · in ritardo":""}</span>`);
+  if(t.status === "doing" && !t.due_at && t.estimate) chips.push(`<span class="chip">stima non interpretabile</span>`);
+  if(t.status === "done") chips.push(`<span class="chip ok">✓ completato ${fmtDate(t.completed_at)}</span>`);
+
+  const actions = t.status === "todo"
+    ? `<button class="btn primary" data-act="start" data-id="${t.id}">Inizia</button>
+       <button class="btn ghost" data-act="edit" data-id="${t.id}">Modifica</button>`
+    : t.status === "doing"
+    ? `<button class="btn primary" data-act="finish" data-id="${t.id}">Termina</button>
+       <button class="btn" data-act="stop" data-id="${t.id}">Rimetti da fare</button>
+       <button class="btn ghost" data-act="edit" data-id="${t.id}">Modifica</button>`
+    : `<button class="btn" data-act="reopen" data-id="${t.id}">Riapri</button>`;
+
+  const del = confirmDelId === t.id
+    ? `<button class="btn danger" data-act="del-yes" data-id="${t.id}">Confermi? Elimina</button>
+       <button class="btn ghost" data-act="del-no" data-id="${t.id}">Annulla</button>`
+    : `<button class="btn ghost" data-act="del" data-id="${t.id}">Elimina</button>`;
+
+  return `
+  <article class="task ${t.status}${late ? " late":""}" data-id="${t.id}">
+    <div class="handle" title="Trascina per riordinare">⠿</div>
+    <div class="body">
+      <h3 class="title">${esc(t.title)}</h3>
+      ${t.description ? `<p class="desc">${esc(t.description)}</p>` : ""}
+      ${chips.length ? `<div class="meta">${chips.join("")}</div>` : ""}
+      <div class="actions">${actions}${del}</div>
+    </div>
+  </article>`;
+}
+
+function editHTML(t){
+  return `
+  <article class="task ${t.status}" data-id="${t.id}">
+    <div class="handle" style="visibility:hidden">⠿</div>
+    <div class="body">
+      <div class="edit">
+        <input id="e-title" value="${esc(t.title)}" placeholder="Titolo">
+        <textarea id="e-desc" placeholder="Descrizione">${esc(t.description || "")}</textarea>
+        <input id="e-est" value="${esc(t.estimate || "")}" placeholder="Tempistica stimata">
+      </div>
+      <div class="actions">
+        <button class="btn primary" data-act="save" data-id="${t.id}">Salva</button>
+        <button class="btn ghost" data-act="cancel" data-id="${t.id}">Annulla</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderSetup(){
+  app.innerHTML = `
+    <div class="card setup">
+      <h2>Collega il database</h2>
+      <ol>
+        <li>Crea un progetto gratuito su <code>supabase.com</code></li>
+        <li>Apri <b>SQL Editor</b> e incolla lo script che trovi nel file <code>SETUP.md</code></li>
+        <li>Vai in <b>Project Settings → API</b> e copia <b>Project URL</b> e chiave <b>anon public</b></li>
+      </ol>
+      <input id="s-url" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off">
+      <input id="s-key" placeholder="chiave anon public (eyJ...)" autocomplete="off">
+      <div class="row" style="display:flex;gap:8px">
+        <button class="btn primary" id="s-save">Collega</button>
+        <button class="btn ghost" id="s-local">Provala senza database</button>
+      </div>
+      <div class="hint" id="s-err"></div>
+    </div>`;
+  document.getElementById("s-save").onclick = () => {
+    const url = document.getElementById("s-url").value.trim().replace(/\/$/, "");
+    const key = document.getElementById("s-key").value.trim();
+    if(!/^https:\/\/.+\.supabase\.co$/.test(url) || key.length < 20){
+      document.getElementById("s-err").textContent = "Controlla URL e chiave.";
+      return;
+    }
+    cfg = {SUPABASE_URL:url, SUPABASE_ANON_KEY:key, mode:"cloud"};
+    localStorage.setItem(LS_CFG, JSON.stringify(cfg));
+    boot();
+  };
+  document.getElementById("s-local").onclick = () => {
+    cfg = {mode:"local"};
+    localStorage.setItem(LS_CFG, JSON.stringify(cfg));
+    boot();
+  };
+}
+
+/* ============================================================
+   EVENTI
+   ============================================================ */
+function wire(){
+  app.querySelectorAll(".tabs button").forEach(b => {
+    b.onclick = () => { view = b.dataset.tab; editingId = null; confirmDelId = null; render(); };
+  });
+
+  const rc = document.getElementById("reconf");
+  if(rc) rc.onclick = () => { localStorage.removeItem(LS_CFG); cfg = null; sb = null; render(); };
+
+  const form = document.getElementById("newForm");
+  if(form){
+    const est = document.getElementById("f-est");
+    const hint = document.getElementById("est-hint");
+    est.oninput = () => {
+      const m = parseEstimate(est.value);
+      hint.textContent = est.value.trim() === ""
+        ? "Scrivi liberamente: riconosco minuti, ore, giorni, settimane e mesi."
+        : (m ? "Interpretato come " + fmtDuration(m) + " → la data di fine comparirà all'avvio."
+             : "Non riesco a interpretarlo: lo salvo come nota, senza data di fine.");
+    };
+    form.onsubmit = async ev => {
+      ev.preventDefault();
+      const title = document.getElementById("f-title").value.trim();
+      if(!title) return;
+      const row = {
+        title,
+        description: document.getElementById("f-desc").value.trim(),
+        estimate: est.value.trim(),
+        status: "todo",
+        position: (activeTasks().reduce((m,t) => Math.max(m, t.position || 0), 0)) + 1,
+        started_at: null, due_at: null, completed_at: null
+      };
+      form.reset(); hint.textContent = "Scrivi liberamente: riconosco minuti, ore, giorni, settimane e mesi.";
+      try{
+        const t = await store.create(row);
+        tasks.push(t); render();
+        document.getElementById("f-title").focus();
+      }catch(e){ fail(e); }
+    };
+  }
+
+  app.querySelectorAll("[data-act]").forEach(b => { b.onclick = () => action(b.dataset.act, b.dataset.id); });
+
+  const list = document.getElementById("list");
+  if(list) list.addEventListener("pointerdown", onPointerDown);
+}
+
+async function action(act, id){
+  const t = tasks.find(x => x.id === id);
+  if(!t && act !== "cancel") return;
+  try{
+    if(act === "start"){
+      const now = new Date();
+      const min = parseEstimate(t.estimate);
+      const patch = {
+        status: "doing",
+        started_at: now.toISOString(),
+        due_at: min ? new Date(now.getTime() + min*60000).toISOString() : null
+      };
+      Object.assign(t, patch); render(); await store.update(id, patch);
+    }
+    else if(act === "stop"){
+      const patch = {status:"todo", started_at:null, due_at:null};
+      Object.assign(t, patch); render(); await store.update(id, patch);
+    }
+    else if(act === "finish"){
+      const patch = {status:"done", completed_at:new Date().toISOString()};
+      Object.assign(t, patch); render(); await store.update(id, patch);
+    }
+    else if(act === "reopen"){
+      const patch = {status:"todo", started_at:null, due_at:null, completed_at:null,
+                     position:(activeTasks().reduce((m,x)=>Math.max(m,x.position||0),0))+1};
+      Object.assign(t, patch); view = "active"; render(); await store.update(id, patch);
+    }
+    else if(act === "edit"){ editingId = id; confirmDelId = null; render(); }
+    else if(act === "cancel"){ editingId = null; render(); }
+    else if(act === "save"){
+      const patch = {
+        title: document.getElementById("e-title").value.trim() || t.title,
+        description: document.getElementById("e-desc").value.trim(),
+        estimate: document.getElementById("e-est").value.trim()
+      };
+      if(t.status === "doing" && t.started_at){
+        const min = parseEstimate(patch.estimate);
+        patch.due_at = min ? new Date(new Date(t.started_at).getTime() + min*60000).toISOString() : null;
+      }
+      Object.assign(t, patch); editingId = null; render(); await store.update(id, patch);
+    }
+    else if(act === "del"){ confirmDelId = id; render(); }
+    else if(act === "del-no"){ confirmDelId = null; render(); }
+    else if(act === "del-yes"){
+      tasks = tasks.filter(x => x.id !== id); confirmDelId = null; render();
+      await store.remove(id);
+    }
+  }catch(e){ fail(e); }
+}
+
+/* ============================================================
+   DRAG & DROP (mouse + touch tramite maniglia)
+   ============================================================ */
+function onPointerDown(e){
+  if(view !== "active") return;
+  const card = e.target.closest(".task");
+  if(!card) return;
+  if(e.target.closest("button,input,textarea,select,a")) return;
+  if(e.pointerType !== "mouse" && !e.target.closest(".handle")) return;
+  if(e.button && e.button !== 0) return;
+
+  const list = card.parentElement;
+  const startX = e.clientX, startY = e.clientY;
+  let started = false, clone = null, ox = 0, oy = 0;
+
+  const move = ev => {
+    if(!started){
+      if(Math.abs(ev.clientY - startY) < 5 && Math.abs(ev.clientX - startX) < 5) return;
+      started = true; dragging = true;
+      const r = card.getBoundingClientRect();
+      ox = startX - r.left; oy = startY - r.top;
+      clone = card.cloneNode(true);
+      clone.classList.add("drag-clone");
+      clone.style.width = r.width + "px";
+      document.body.appendChild(clone);
+      card.classList.add("drag-source");
+      document.body.classList.add("dragging");
+    }
+    ev.preventDefault();
+    clone.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px)`;
+    let after = null;
+    list.querySelectorAll(".task:not(.drag-source)").forEach(s => {
+      const r = s.getBoundingClientRect();
+      if(ev.clientY > r.top + r.height/2) after = s;
+    });
+    if(after){ if(after.nextElementSibling !== card) after.after(card); }
+    else if(list.firstElementChild !== card) list.prepend(card);
+  };
+
+  const up = async () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    if(!started) return;
+    clone.remove();
+    card.classList.remove("drag-source");
+    document.body.classList.remove("dragging");
+    dragging = false;
+
+    const ids = [...list.querySelectorAll(".task")].map(el => el.dataset.id);
+    const items = ids.map((id, i) => ({id, position: i + 1}));
+    items.forEach(it => { const t = tasks.find(x => x.id === it.id); if(t) t.position = it.position; });
+    try{ await store.reorder(items); }catch(err){ fail(err); }
+    if(pendingRefresh){ pendingRefresh = false; refresh(); }
+  };
+
+  window.addEventListener("pointermove", move, {passive:false});
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+}
+
+/* ============================================================
+   SINCRONIZZAZIONE
+   ============================================================ */
+function fail(e){
+  console.error(e);
+  online = false;
+  const d = document.querySelector(".sync");
+  if(d) d.innerHTML = `<span class="dot off"></span>errore di salvataggio`;
+}
+async function refresh(){
+  if(dragging || editingId){ pendingRefresh = true; return; }
+  try{
+    const fresh = await store.list();
+    online = true;
+    if(JSON.stringify(fresh) !== JSON.stringify(tasks)){ tasks = fresh; render(); }
+    else { const d = document.querySelector(".dot"); if(d && cfg.mode !== "local"){ d.className = "dot on"; } }
+  }catch(e){ fail(e); }
+}
+
+async function boot(){
+  cfg = cfg || loadCfg();
+  if(!cfg){ render(); return; }
+  if(cfg.mode === "local"){ store = localStore; }
+  else {
+    if(!window.supabase){ app.innerHTML = `<div class="empty">Libreria Supabase non caricata: controlla la connessione.</div>`; return; }
+    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    store = cloudStore;
+    sb.channel("tasks-rt")
+      .on("postgres_changes", {event:"*", schema:"public", table:"tasks"}, () => refresh())
+      .subscribe();
+    setInterval(refresh, 20000);
+    document.addEventListener("visibilitychange", () => { if(!document.hidden) refresh(); });
+  }
+  try{ tasks = await store.list(); online = true; }catch(e){ tasks = []; fail(e); }
+  render();
+}
+boot();
+</script>
+</body>
+</html>
